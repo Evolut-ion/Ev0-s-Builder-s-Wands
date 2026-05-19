@@ -1,0 +1,41 @@
+{
+  "TranslationProperties": {
+    "Name": "Arcane Builder's Wand (T2)"
+  },
+  "MaxDurability": 1024,
+  "DurabilityLossOnDeath": false,
+  "MaxStack": 1,
+  "Tags": { "Type": ["Tool"] },
+  "Interactions": {
+    "Secondary": {
+      "Interactions": [
+        {
+          "Type": "BuildersWandPlace",
+          "Tier": "T2"
+        },
+        {
+          "Type": "BuildersWandAdjust",
+          "Tier": "T2"
+        }
+      ]
+    }
+  },
+  "Icon": "Icons/ItemsGenerated/arcanebuilderswandicon.png",
+  "Model": "Items/Icons/ItemsGenerated/arcanebuilderswand.blockymodel",
+  "Texture": "Items/arcanebuilderswandtexture.png",
+  "RequiresAlphaBlending": true,
+  "Recipe": {
+    "Input": [
+      { "ItemId": "Rock_Stone_Cobble", "Quantity": 2 },
+      { "ItemId": "Ingredient_Crystal_Red", "Quantity": 25 },
+      {"ItemId" : "Ingredient_Stick", "Quantity": 5 }
+    ],
+    "BenchRequirement": [
+      {
+        "Id": "Workbench",
+        "Type": "Crafting",
+        "Categories": [ "Workbench_Crafting" ]
+      }
+    ]
+  }
+}

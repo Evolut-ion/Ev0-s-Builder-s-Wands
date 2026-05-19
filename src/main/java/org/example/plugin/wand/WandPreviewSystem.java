@@ -21,6 +21,7 @@ import com.hypixel.hytale.server.core.universe.world.accessor.BlockAccessor;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -56,7 +57,7 @@ public final class WandPreviewSystem extends EntityTickingSystem<EntityStore> {
             }
             String itemId = heldItem.getItemId();
             System.out.println("[WandPreview] held item: " + itemId);
-            if (itemId == null || !itemId.contains("BuildersWand_")) return;
+            if (itemId == null || !itemId.contains("BuildersWand") || itemId.contains("Copy")) return;
 
             MovementStatesComponent movStates = store.getComponent(entityRef, MovementStatesComponent.getComponentType());
             if (movStates != null && movStates.getMovementStates().crouching) return;
@@ -138,8 +139,9 @@ public final class WandPreviewSystem extends EntityTickingSystem<EntityStore> {
                 ParticleUtil.spawnParticleEffect(
                         PREVIEW_PARTICLE,
                         pos[0] + 0.5, pos[1] + 0.5, pos[2] + 0.5,
-                        0.25f, 0.0f, 0.0f,
-                        entityRef, receivers, store);
+                        0.0f, 0.0f, 0.0f, 0.25f,
+                        null, null,
+                        receivers, store);
             }
         } catch (Throwable t) {
             System.out.println("[WandPreview] exception in tick: " + t);
@@ -169,9 +171,14 @@ public final class WandPreviewSystem extends EntityTickingSystem<EntityStore> {
     private static List<int[]> collectViablePositions(
             World world, int cx, int cy, int cz, Face face, int size, int targetIdx) {
         int half = (size - 1) / 2;
-        List<int[]> result = new ArrayList<>();
-        for (int u = -half; u <= half; u++) {
-            for (int v = -half; v <= half; v++) {
+        int n = size;
+        boolean[][] viable = new boolean[n][n];
+        int[][][] worldPos = new int[n][n][3];
+
+        for (int i = 0; i < n; i++) {
+            int u = i - half;
+            for (int j = 0; j < n; j++) {
+                int v = j - half;
                 int bx, by, bz;
                 switch (face) {
                     case UP    -> { bx = cx + u; by = cy + 1; bz = cz + v; }
@@ -181,27 +188,58 @@ public final class WandPreviewSystem extends EntityTickingSystem<EntityStore> {
                     case SOUTH -> { bx = cx + u; by = cy + v; bz = cz + 1; }
                     default    -> { bx = cx + u; by = cy + v; bz = cz - 1; }
                 }
-                if (!isViable(world, bx, by, bz, targetIdx)) continue;
-                result.add(new int[]{bx, by, bz});
+                worldPos[i][j][0] = bx;
+                worldPos[i][j][1] = by;
+                worldPos[i][j][2] = bz;
+                viable[i][j] = isViable(world, bx, by, bz, face, targetIdx);
+            }
+        }
+
+        boolean[][] reachable = new boolean[n][n];
+        int ci = half, cj = half;
+        if (viable[ci][cj]) {
+            ArrayDeque<int[]> queue = new ArrayDeque<>();
+            reachable[ci][cj] = true;
+            queue.add(new int[]{ci, cj});
+            int[][] dirs = {{0,1},{0,-1},{1,0},{-1,0}};
+            while (!queue.isEmpty()) {
+                int[] cur = queue.poll();
+                for (int[] d : dirs) {
+                    int ni = cur[0] + d[0], nj = cur[1] + d[1];
+                    if (ni >= 0 && ni < n && nj >= 0 && nj < n && !reachable[ni][nj] && viable[ni][nj]) {
+                        reachable[ni][nj] = true;
+                        queue.add(new int[]{ni, nj});
+                    }
+                }
+            }
+        }
+
+        List<int[]> result = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                if (reachable[i][j]) {
+                    result.add(new int[]{worldPos[i][j][0], worldPos[i][j][1], worldPos[i][j][2]});
+                }
             }
         }
         return result;
     }
 
-    private static boolean isViable(World world, int bx, int by, int bz, int targetIdx) {
+    private static boolean isViable(World world, int bx, int by, int bz, Face face, int targetIdx) {
         BlockAccessor chunk = world.getChunkIfInMemory(ChunkUtil.indexChunkFromBlock(bx, bz));
         if (chunk == null) return false;
         if (chunk.getBlock(bx, by, bz) != BlockType.EMPTY_ID) return false;
-        int[][] neighbors = {
-            {bx+1, by, bz}, {bx-1, by, bz},
-            {bx, by+1, bz}, {bx, by-1, bz},
-            {bx, by, bz+1}, {bx, by, bz-1}
-        };
-        for (int[] n : neighbors) {
-            BlockAccessor nc = world.getChunkIfInMemory(ChunkUtil.indexChunkFromBlock(n[0], n[2]));
-            if (nc == null) continue;
-            if (nc.getBlock(n[0], n[1], n[2]) == targetIdx) return true;
+        int sx, sy, sz;
+        switch (face) {
+            case UP    -> { sx = bx; sy = by - 1; sz = bz; }
+            case DOWN  -> { sx = bx; sy = by + 1; sz = bz; }
+            case EAST  -> { sx = bx - 1; sy = by; sz = bz; }
+            case WEST  -> { sx = bx + 1; sy = by; sz = bz; }
+            case SOUTH -> { sx = bx; sy = by; sz = bz - 1; }
+            default    -> { sx = bx; sy = by; sz = bz + 1; }
         }
-        return false;
+        BlockAccessor nc = world.getChunkIfInMemory(ChunkUtil.indexChunkFromBlock(sx, sz));
+        if (nc == null) return false;
+        return nc.getBlock(sx, sy, sz) == targetIdx;
     }
 }

@@ -5,6 +5,8 @@ import com.hypixel.hytale.server.core.modules.interaction.interaction.config.Int
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import org.example.plugin.wand.BuildersWandAdjustInteraction;
+import org.example.plugin.wand.BuildersWandCopyInteraction;
+import org.example.plugin.wand.BuildersWandCopyPreviewSystem;
 import org.example.plugin.wand.BuildersWandPlaceInteraction;
 import org.example.plugin.wand.WandPreviewSystem;
 
@@ -32,7 +34,12 @@ public class Ev0sBuildersWandPlugin extends JavaPlugin {
                 "BuildersWandAdjust",
                 BuildersWandAdjustInteraction.class,
                 BuildersWandAdjustInteraction.CODEC);
+        interactionRegistry.register(
+                "BuildersWandCopy",
+                BuildersWandCopyInteraction.class,
+                BuildersWandCopyInteraction.CODEC);
 
         this.getEntityStoreRegistry().registerSystem(new WandPreviewSystem());
+        this.getEntityStoreRegistry().registerSystem(new BuildersWandCopyPreviewSystem());
     }
 }

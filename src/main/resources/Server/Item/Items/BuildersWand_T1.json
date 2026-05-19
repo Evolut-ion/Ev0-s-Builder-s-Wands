@@ -20,5 +20,22 @@
       ]
     }
   },
-  "Icon": "Icons/ItemsGenerated/Weapon_Staff_Bronze.png"
+  "Icon": "Icons/ItemsGenerated/builderswandicon.png",
+  "Model": "Items/Icons/ItemsGenerated/builderswand.blockymodel",
+  "Texture": "Items/builderswandtexture.png",
+  "RequiresAlphaBlending": true,
+  "Recipe": {
+    "Input": [
+      { "ItemId": "Rock_Stone_Cobble", "Quantity": 2 },
+      { "ItemId": "Ingredient_Crystal_Red", "Quantity": 15 },
+      {"ItemId" : "Ingredient_Stick", "Quantity": 5 }
+    ],
+    "BenchRequirement": [
+      {
+        "Id": "Workbench",
+        "Type": "Crafting",
+        "Categories": [ "Workbench_Crafting" ]
+      }
+    ]
+  }
 }

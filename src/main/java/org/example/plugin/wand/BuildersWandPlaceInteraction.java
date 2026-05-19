@@ -12,6 +12,7 @@ import com.hypixel.hytale.math.vector.Transform;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.protocol.InteractionType;
+import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.entity.InteractionContext;
 import com.hypixel.hytale.server.core.entity.movement.MovementStatesComponent;
@@ -30,6 +31,7 @@ import org.joml.Vector3i;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -126,7 +128,18 @@ public final class BuildersWandPlaceInteraction extends CompatSimpleBlockInterac
         CombinedItemContainer inv = InventoryComponent.getCombined(
                 store, playerEnt, InventoryComponent.HOTBAR_STORAGE_BACKPACK);
 
+        // Count available blocks and warn if insufficient
+        int availableBlocks = countAvailable(inv, blockItemId);
+        if (availableBlocks == 0) {
+            playerRef.sendMessage(Message.raw("[Wand] No " + blockItemId + " blocks in inventory!").color("#FF4444"));
+            return;
+        }
+        if (availableBlocks < candidates.size()) {
+            playerRef.sendMessage(Message.raw("[Wand] Only " + availableBlocks + "/" + candidates.size() + " " + blockItemId + " blocks — not enough to complete placement").color("#FF4444"));
+        }
+
         int blocksPlaced = 0;
+        int candidatesTotal = candidates.size();
         for (int[] pos : candidates) {
             if (!consumeOneBlock(inv, blockItemId)) break;
             BlockAccessor targetChunk = world.getChunkIfInMemory(
@@ -137,13 +150,19 @@ public final class BuildersWandPlaceInteraction extends CompatSimpleBlockInterac
             blocksPlaced++;
         }
 
+        // Warn if placement was incomplete due to blocks running out mid-way
+        if (blocksPlaced < candidatesTotal && availableBlocks >= candidatesTotal) {
+            playerRef.sendMessage(Message.raw("[Wand] Placement incomplete — some positions could not be filled").color("#FF4444"));
+        }
+
         // Reduce wand durability by number of blocks placed
         if (blocksPlaced > 0 && itemStack != null && itemStack.getMaxDurability() > 0 && !itemStack.isUnbreakable()) {
             short cap = inv.getCapacity();
+            String heldId = itemStack.getItemId();
             for (short slot = 0; slot < cap; slot++) {
                 ItemStack stack = inv.getItemStack(slot);
                 if (stack == null) continue;
-                if (stack.getItemId() != null && stack.getItemId().contains("BuildersWand_")) {
+                if (stack.getItemId() != null && stack.getItemId().equals(heldId)) {
                     double newDura = Math.max(0, stack.getDurability() - blocksPlaced);
                     inv.setItemStackForSlot(slot, stack.withDurability(newDura));
                     break;
@@ -198,8 +217,9 @@ public final class BuildersWandPlaceInteraction extends CompatSimpleBlockInterac
             ParticleUtil.spawnParticleEffect(
                     PREVIEW_PARTICLE,
                     pos[0] + 0.5, pos[1] + 0.5, pos[2] + 0.5,
-                    0.25f, 0.0f, 0.0f,
-                    playerEnt, receivers, store);
+                    0.0f, 0.0f, 0.0f, 0.25f,
+                    null, null,
+                    receivers, store);
         }
     }
 
@@ -266,10 +286,14 @@ public final class BuildersWandPlaceInteraction extends CompatSimpleBlockInterac
             BlockType targetType, int targetIdx) {
 
         int half = (size - 1) / 2;
-        List<int[]> result = new ArrayList<>();
+        int n = size;
+        boolean[][] viable = new boolean[n][n];
+        int[][][] worldPos = new int[n][n][3];
 
-        for (int u = -half; u <= half; u++) {
-            for (int v = -half; v <= half; v++) {
+        for (int i = 0; i < n; i++) {
+            int u = i - half;
+            for (int j = 0; j < n; j++) {
+                int v = j - half;
                 int bx, by, bz;
                 switch (face) {
                     case UP    -> { bx = center.x + u; by = center.y + 1; bz = center.z + v; }
@@ -280,34 +304,60 @@ public final class BuildersWandPlaceInteraction extends CompatSimpleBlockInterac
                     default    -> { bx = center.x + u; by = center.y + v; bz = center.z - 1; }
                 }
 
-                if (!isViable(world, bx, by, bz, targetType, targetIdx)) continue;
-                result.add(new int[]{bx, by, bz});
+                worldPos[i][j][0] = bx;
+                worldPos[i][j][1] = by;
+                worldPos[i][j][2] = bz;
+                viable[i][j] = isViable(world, bx, by, bz, face, targetType, targetIdx);
+            }
+        }
+
+        boolean[][] reachable = new boolean[n][n];
+        int ci = half, cj = half;
+        if (viable[ci][cj]) {
+            ArrayDeque<int[]> queue = new ArrayDeque<>();
+            reachable[ci][cj] = true;
+            queue.add(new int[]{ci, cj});
+            int[][] dirs = {{0,1},{0,-1},{1,0},{-1,0}};
+            while (!queue.isEmpty()) {
+                int[] cur = queue.poll();
+                for (int[] d : dirs) {
+                    int ni = cur[0] + d[0], nj = cur[1] + d[1];
+                    if (ni >= 0 && ni < n && nj >= 0 && nj < n && !reachable[ni][nj] && viable[ni][nj]) {
+                        reachable[ni][nj] = true;
+                        queue.add(new int[]{ni, nj});
+                    }
+                }
+            }
+        }
+
+        List<int[]> result = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                if (reachable[i][j]) {
+                    result.add(new int[]{worldPos[i][j][0], worldPos[i][j][1], worldPos[i][j][2]});
+                }
             }
         }
         return result;
     }
 
-    /**
-     * A position is viable if it is currently air and has at least one
-     * orthogonal neighbor that is the same block type as the target.
-     */
-    private boolean isViable(World world, int bx, int by, int bz,
+    private boolean isViable(World world, int bx, int by, int bz, Face face,
                               BlockType targetType, int targetIdx) {
         BlockAccessor chunk = world.getChunkIfInMemory(ChunkUtil.indexChunkFromBlock(bx, bz));
         if (chunk == null) return false;
         if (chunk.getBlock(bx, by, bz) != BlockType.EMPTY_ID) return false;
-
-        int[][] neighbors = {
-                {bx + 1, by, bz}, {bx - 1, by, bz},
-                {bx, by + 1, bz}, {bx, by - 1, bz},
-                {bx, by, bz + 1}, {bx, by, bz - 1}
-        };
-        for (int[] n : neighbors) {
-            BlockAccessor nc = world.getChunkIfInMemory(ChunkUtil.indexChunkFromBlock(n[0], n[2]));
-            if (nc == null) continue;
-            if (nc.getBlock(n[0], n[1], n[2]) == targetIdx) return true;
+        int sx, sy, sz;
+        switch (face) {
+            case UP    -> { sx = bx; sy = by - 1; sz = bz; }
+            case DOWN  -> { sx = bx; sy = by + 1; sz = bz; }
+            case EAST  -> { sx = bx - 1; sy = by; sz = bz; }
+            case WEST  -> { sx = bx + 1; sy = by; sz = bz; }
+            case SOUTH -> { sx = bx; sy = by; sz = bz - 1; }
+            default    -> { sx = bx; sy = by; sz = bz + 1; }
         }
-        return false;
+        BlockAccessor nc = world.getChunkIfInMemory(ChunkUtil.indexChunkFromBlock(sx, sz));
+        if (nc == null) return false;
+        return nc.getBlock(sx, sy, sz) == targetIdx;
     }
 
     /**
@@ -325,5 +375,17 @@ public final class BuildersWandPlaceInteraction extends CompatSimpleBlockInterac
             return true;
         }
         return false;
+    }
+
+    private int countAvailable(CombinedItemContainer inv, String itemId) {
+        short cap = inv.getCapacity();
+        int total = 0;
+        for (short slot = 0; slot < cap; slot++) {
+            ItemStack stack = inv.getItemStack(slot);
+            if (stack == null) continue;
+            if (!itemId.equals(stack.getItemId())) continue;
+            total += stack.getQuantity();
+        }
+        return total;
     }
 }
