@@ -1,0 +1,24 @@
+{
+  "TranslationProperties": {
+    "Name": "Builder's Wand (T3)"
+  },
+  "MaxDurability": 1536,
+  "DurabilityLossOnDeath": false,
+  "MaxStack": 1,
+  "Tags": { "Type": ["Tool"] },
+  "Interactions": {
+    "Secondary": {
+      "Interactions": [
+        {
+          "Type": "BuildersWandPlace",
+          "Tier": "T3"
+        },
+        {
+          "Type": "BuildersWandAdjust",
+          "Tier": "T3"
+        }
+      ]
+    }
+  },
+  "Icon": "Icons/ItemsGenerated/Weapon_Staff_Bronze.png"
+}

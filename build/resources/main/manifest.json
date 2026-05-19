@@ -1,0 +1,22 @@
+{
+    "Group": "Ev0'sMods",
+    "Name": "Ev0sBuildersWands",
+    "Version": "0.0.1",
+    "Description": "Builders Wands for Hytale!",
+    "Authors": [
+        {
+            "Name": "OfficialEv0"
+        }
+    ],
+    "Website": "example.org",
+    "ServerVersion": "2026.03.26-89796e57b",
+    "Dependencies": {
+        
+    },
+    "OptionalDependencies": {
+        
+    },
+    "DisabledByDefault": false,
+    "Main": "org.example.plugin.Ev0sBuildersWandPlugin",
+    "IncludesAssetPack": true
+}

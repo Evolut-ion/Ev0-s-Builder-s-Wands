@@ -1,0 +1,1 @@
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html","k":"18"},{"l":"com.example.templateplugin"},{"l":"org.example.plugin"},{"l":"org.example.plugin.wand"}];updateSearchResults();
